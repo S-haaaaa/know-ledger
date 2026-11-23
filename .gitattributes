@@ -1,0 +1,20 @@
+* text=auto
+*.sh text eol=lf
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
+*.aar binary
+*.png binary
+*.woff2 binary
+*.tar.gz binary
+
+# Exclude local evidence from git archive.
+/output export-ignore
+/artifacts export-ignore
+/.impeccable export-ignore
+/.taste-skill export-ignore
+
+# Preserve upstream license bytes required by the pinned checksums.
+LICENSE -text
+app/src/main/assets/licenses/** -text
+third_party/ocr-runtime/licenses/** -text

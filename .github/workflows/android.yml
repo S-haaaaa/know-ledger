@@ -1,0 +1,192 @@
+name: Android
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check public sources and pinned notices
+        run: |
+          python -m unittest discover -s scripts/tests
+          python scripts/check-public-source.py --output output/Huayoupu-Ledger-source.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checked-source
+          path: |
+            output/Huayoupu-Ledger-source.zip
+            output/Huayoupu-Ledger-source.sha256
+
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/ui-checks/package-lock.json
+      - name: Install locked browser checks
+        run: |
+          npm ci --prefix tools/ui-checks --ignore-scripts --no-audit --no-fund
+          tools/ui-checks/node_modules/.bin/playwright install --with-deps chromium
+      - name: Check detail motion, navigation, ledger design and optimization
+        env:
+          PLAYWRIGHT_MODULE: ${{ github.workspace }}/tools/ui-checks/node_modules/playwright
+        run: |
+          node scripts/check-record-motion.cjs
+          node scripts/check-tab-navigation.cjs
+          node scripts/check-ledger-optimization.cjs
+          node scripts/check-ledger-search.cjs
+
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/web-protection/package-lock.json
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Cache pinned public SDK and model inputs
+        uses: actions/cache@v4
+        with:
+          path: .tools/ocr-ab
+          key: v6-public-inputs-${{ runner.os }}-${{ hashFiles('third_party/ocr-runtime/config/upstream-lock.json', 'third_party/ocr-runtime/config/paddle-sdk.gradle.kts', 'scripts/prepare-paddle-sdk.py') }}
+      - name: Prepare and verify pinned V6 build inputs
+        run: python scripts/prepare-ledger-build.py
+      - name: Install SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Build emulator APKs, lint and run core tests
+        run: |
+          bash ./gradlew -PledgerAbi=x86_64 :core:test :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --stacktrace
+          mkdir -p ci-artifacts
+          cp app/build/outputs/apk/debug/*.apk ci-artifacts/Huayoupu-Ledger-debug-x86_64.apk
+          cp app/build/outputs/apk/androidTest/debug/*.apk ci-artifacts/Huayoupu-Ledger-test-x86_64.apk
+      - name: Enable emulator acceleration
+        run: sudo chmod 666 /dev/kvm
+      - name: Android storage, queue and inference regressions
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_3a
+          disable-animations: true
+          script: bash ./gradlew -PledgerAbi=x86_64 '-Pandroid.testInstrumentationRunnerArguments.class=net.ankio.ledger.LicenseDisclosureTest,net.ankio.ledger.ExecutionLogTest,net.ankio.ledger.ocr.LocalModeSettingsTest,net.ankio.ledger.data.LedgerCursorOptimizationTest,net.ankio.ledger.data.LedgerCandidateOptimizationTest,net.ankio.ledger.data.RecognitionRecoveryOptimizationTest,net.ankio.ledger.data.LedgerQuery056Test,net.ankio.ledger.data.AutomaticSupplementTest,net.ankio.ledger.data.RefundPersistenceTest,net.ankio.ledger.data.LedgerIdentity056Test,net.ankio.ledger.data.MerchantEnrichmentTest,net.ankio.ledger.data.LedgerUndo056Test,net.ankio.ledger.data.CaptureSupplementTest,net.ankio.ledger.PaymentRecognitionQueueTest,net.ankio.ledger.PaymentVisitsTest,net.ankio.ledger.BackgroundSettingsSyncTest,net.ankio.ledger.PermissionTrimTest,net.ankio.ledger.CaptureReadinessTest,net.ankio.ledger.CaptureRestoreTest,net.ankio.ledger.RecognitionBannerFallbackTest,net.ankio.ledger.SetupStepsTest,net.ankio.ledger.ocr.IconGeneralityTest,net.ankio.ledger.ocr.LocalHeaderIconTest,net.ankio.ledger.IconLocationRegressionTest,net.ankio.ledger.MerchantIconTest,net.ankio.ledger.ocr.LocalRecognitionClientTest,net.ankio.ledger.data.AccountPostingTest,net.ankio.ledger.data.ChannelDefaultAccountTest,net.ankio.ledger.data.MonthlyBudgetTest,net.ankio.ledger.data.ReimbursementTest,net.ankio.ledger.data.BillReportTest,net.ankio.ledger.data.ReportEvidenceTest,net.ankio.ledger.data.AccountNameTest,net.ankio.ledger.data.RefundBackupTest,net.ankio.ledger.AccountIdentityCurrencyUiTest,net.ankio.ledger.BillReportUiTest' :app:connectedDebugAndroidTest --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-preview-and-reports
+          path: |
+            ci-artifacts/*.apk
+            app/build/reports/
+            core/build/reports/tests/
+          if-no-files-found: warn
+
+  apk:
+    name: ARM64 APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/web-protection/package-lock.json
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/cache@v4
+        with:
+          path: .tools/ocr-ab
+          key: v6-public-inputs-${{ runner.os }}-${{ hashFiles('third_party/ocr-runtime/config/upstream-lock.json', 'third_party/ocr-runtime/config/paddle-sdk.gradle.kts', 'scripts/prepare-paddle-sdk.py') }}
+      - name: Build optimized ARM64 release
+        run: |
+          python scripts/prepare-ledger-build.py
+          sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+          bash ./gradlew -PledgerAbi=arm64-v8a :app:assembleRelease --stacktrace
+          python - <<'PY'
+          import json, pathlib, shutil
+          root = pathlib.Path('app/build/outputs/apk/release')
+          metadata = json.loads((root / 'output-metadata.json').read_text())
+          item, = metadata['elements']
+          output = pathlib.Path('ci-artifacts')
+          output.mkdir(exist_ok=True)
+          name = f"Huayoupu-Ledger-{item['versionName']}-arm64-v8a-unsigned.apk"
+          shutil.copy2(root / item['outputFile'], output / name)
+          (output / 'build-info.json').write_text(json.dumps({
+              'package': metadata['applicationId'], 'version': item['versionName'],
+              'versionCode': item['versionCode'], 'abi': 'arm64-v8a'
+          }, indent=2) + '\n')
+          PY
+      - name: Sign trusted master builds
+        if: github.repository == 'AldenHe/huayoupu-ledger' && github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64" && test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo 'Configure the Android signing secrets before publishing master builds.'; exit 1; }
+          umask 077
+          keystore="$RUNNER_TEMP/huiming-release.p12"
+          trap 'rm -f "$keystore" "$RUNNER_TEMP/huiming-aligned.apk"' EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          unsigned=(ci-artifacts/*-unsigned.apk)
+          apk="${unsigned[0]%-unsigned.apk}.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -P 16 -f 4 "${unsigned[0]}" "$RUNNER_TEMP/huiming-aligned.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign --ks "$keystore" --ks-key-alias huiming-ledger --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEYSTORE_PASSWORD --out "$apk" "$RUNNER_TEMP/huiming-aligned.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$apk" | tee ci-artifacts/signature.txt
+          rm "${unsigned[0]}"
+      - name: Record checksum and build provenance
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, pathlib
+          output = pathlib.Path('ci-artifacts')
+          apk, = output.glob('*.apk')
+          digest = hashlib.sha256(apk.read_bytes()).hexdigest()
+          (output / (apk.name + '.sha256')).write_text(f'{digest}  {apk.name}\n')
+          metadata = json.loads((output / 'build-info.json').read_text())
+          metadata.update(commit=os.environ['GITHUB_SHA'], filename=apk.name,
+                          sha256=digest, signed=not apk.name.endswith('-unsigned.apk'))
+          (output / 'build-info.json').write_text(json.dumps(metadata, indent=2) + '\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-arm64
+          path: ci-artifacts/
+          if-no-files-found: error
