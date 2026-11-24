@@ -192,7 +192,7 @@ class LedgerWebBridge(private val activity: MainActivity) {
             val installed=runCatching { activity.packageManager.getApplicationInfo(item.packageName,0) }.isSuccess
             applications.put(JSONObject().put("packageName",item.packageName).put("label",item.label)
                 .put("selected",item.packageName in selectedPackages).put("installed",installed)
-                .put("coverage",if(item.packageName=="com.taobao.taobao")"testing" else "adapted"))
+                .put("coverage",if(item.packageName in PaymentApps.ecommercePackages)"testing" else "adapted"))
         }
         JSONObject().put("ok", true).put("version", BuildConfig.VERSION_NAME)
             .put("ledgerView",view?.let { JSONObject().put("hasMore",it.getBoolean("hasMore")).put("summary",it.getJSONObject("summary"))
@@ -622,13 +622,18 @@ class LedgerWebBridge(private val activity: MainActivity) {
     /** An individual switch only commits its application after the shared setup completes. */
     @JavascriptInterface
     fun setPaymentApplication(packageName:String,enabled:Boolean)=onMain {
-        if(packageName !in setOf("com.tencent.mm","com.eg.android.AlipayGphone"))return@onMain
+        val target=PaymentApps.entries.firstOrNull { it.packageName==packageName }?:return@onMain
         if(enabled) {
-            if(runCatching { activity.packageManager.getApplicationInfo(packageName,0) }.isFailure) { activity.message("请先安装对应的支付应用");return@onMain }
-            activity.permissionSetup.startAutomatic(packageName)
+            if(runCatching { activity.packageManager.getApplicationInfo(packageName,0) }.isFailure) { activity.message("请先安装${target.label}");return@onMain }
+            if(app.channels.automaticEnabled() && app.channels.permitted(ChannelSettings.Channel.OCR) && net.ankio.ledger.capture.ScreenCaptureService.current!=null) {
+                app.channels.enablePaymentApplication(packageName)
+                net.ankio.ledger.capture.ScreenCaptureService.current?.checkPaymentPages()
+                app.changed()
+            } else {
+                activity.permissionSetup.startAutomatic(packageName)
+            }
         } else {
-            val name=if(packageName=="com.tencent.mm")"微信" else "支付宝"
-            MintDialog.confirm(activity,"关闭${name}自动识别？","将停止${name}支付成功页自动记账，其他应用与摇一摇的设置保留。","关闭自动识别") {
+            MintDialog.confirm(activity,"关闭${target.label}自动识别？","将停止${target.label}支付成功页自动记账，其他应用与摇一摇的设置保留。","关闭自动识别") {
                 app.channels.setAutoPackage(packageName,false);app.captureQueue.cancelAutomatic(packageName)
                 if(app.channels.selectedAutoPackages().isEmpty())app.channels.setAutomaticEnabled(false)
                 net.ankio.ledger.capture.ScreenCaptureService.current?.checkPaymentPages()

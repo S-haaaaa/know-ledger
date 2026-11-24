@@ -143,7 +143,7 @@ class LedgerInteractionTest {
             assertEquals("true",web.value("iconForCategory('餐饮美食')==='utensils' && iconForCategory('母婴亲子')==='baby' && iconForCategory('高速代扣')==='road' && iconForCategory('城市停车服务')==='square-parking'"))
             assertEquals("true",web.value("categoryBadge('自建长分类').includes('自') && categoryBadge('<未知>').includes('&lt;')"))
             web.run("go('settings')")
-            assertEquals("true",web.value("Boolean(document.querySelectorAll('#settings [data-payment-app]').length===2 && document.querySelectorAll('#settings .account-preferences>button').length===2 && document.querySelectorAll('#settings .shake .step').length===3 && document.querySelector('#settings .shake-illustration') && !document.querySelector('#settings .eco') && document.querySelector('#settings-help') && !document.querySelector('#model-info'))"))
+            assertEquals("true",web.value("Boolean(document.querySelectorAll('#settings [data-payment-app]').length===6 && document.querySelectorAll('#settings .account-preferences>button').length===2 && document.querySelectorAll('#settings .shake .step').length===3 && document.querySelector('#settings .shake-illustration') && !document.querySelector('#settings .eco') && document.querySelector('#settings-help') && !document.querySelector('#model-info'))"))
             web.run("document.querySelector('#settings-help').click()")
             web.await("document.querySelector('#sheet').open && document.querySelector('#sheet-content').textContent.includes('支付成功') && document.querySelector('#sheet-content').textContent.includes('摇一摇')")
         }

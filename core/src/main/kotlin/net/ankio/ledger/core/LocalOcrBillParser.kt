@@ -15,10 +15,11 @@ data class LocalOcrLine(
 /** Conservative, entirely offline extraction of a single completed transaction. */
 object LocalOcrBillParser {
     private val number = Regex("(?<![0-9.])([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(\\.[0-9]{1,2})?(?![0-9.])")
-    private val paid = Regex("支付成功|付款成功|转账成功|交易成功|扣款成功|成功扣款|已支付|已付款")
+    private val paid = Regex("支付成功|付款成功|转账成功|交易成功|扣款成功|成功扣款|已支付|已付款|已转账|对方已收[款钱]|已存入.{0,20}零钱|转账已发起|购买成功")
     private val received = Regex("收款成功|收款到账|已收款|已收钱|已到账|收入")
     private val pending = Regex("请输入.*密码|输入支付密码|指纹验证|面容验证|待付款|待支付|未支付|未付款|支付中|付款中|交易关闭|支付失败|付款失败|交易失败|已取消|转账中")
-    private val amountLabel = Regex("^(?:实付款|实付金额|实付(?!价)|实际支付|付款金额|支付金额|转账金额|交易金额|支出金额|收款金额|到账金额|收入金额|金额)[：:]?")
+    private val amountLabel = Regex("^(?:实付款|实付金额|实付合计|合计实付|实付(?!价)|实际付款|实际支付|付款金额|支付金额|共支付|转账金额|交易金额|支出金额|收款金额|到账金额|收入金额|金额)[：:]?")
+    private val ecommerceAmountLabel = Regex("^(?:实付款|实付金额|实付合计|合计实付|实付(?!价)|实际付款|实际支付|支付金额|付款金额|共支付)[：:]?")
     private val orderPaidTotal = Regex("^(?:实付款|实付金额|实际支付)[：:]?")
     private val manualTotal = Regex("^(?:实付款|实付金额|实际支付|实付(?!价)|合计|成交价(?:[（(]已到达卖家账[户戶][）)])?)[：:]?")
     private const val amountWord = "金[额額]{1,2}"
@@ -30,7 +31,15 @@ object LocalOcrBillParser {
     private val paymentTimeLabel = Regex("^(?:原(?:支付|付款|交易|转账)时间|支付时间|付款时间|交易时间|转账时间)[：:]?")
     private val idLabel = Regex("^(?:(?:原)?(?:微信|支付宝)?(?:支付|付款|交易|转账|订单))(?:编号|单号|号)[：:]?")
     private val datePattern = Regex("(20[0-9]{2})[年/.-]([0-9]{1,2})[月/.-]([0-9]{1,2})日?\\s*([0-9]{1,2})[:：]([0-9]{2})(?:[:：]([0-9]{2}))?")
-    private val uiText = Regex("支付成功|付款成功|转账成功|交易成功|账单详情|交易详情|转账详情|全部账单|返回商家|完成|当前状态|账单服务|收款方服务|支付方式|付款方式|零钱|余额|银行卡|对订单有疑惑|电子凭证|退款|返回|服务由|¥|^[+-]?[0-9,.]+$")
+    private val uiText = Regex("支付成功|付款成功|转账成功|交易成功|购买成功|下单成功|拼单成功|已转账|已存入对方零钱|转账已发起|等待对方收款|待对方收款|账单详情|交易详情|转账详情|全部账单|返回商家|返回商户|返回应用|完成付款|继续购物|查看订单|返回首页|回到首页|继续逛逛|去逛逛|完成|当前状态|账单服务|收款方服务|支付方式|付款方式|美团支付|美团月付|多多支付|京东支付|白条|白条支付|零钱|余额|银行卡|对订单有疑惑|电子凭证|退款|返回|服务由|¥|^[+-]?[0-9,.]+$")
+    private val transferStatusText = Regex("^(?:(?:待|等待).{1,40}(?:确认)?收[款钱]|已向.{1,40}转账|已存入.{1,20}零钱|转账给.{1,40}|给.{1,40})$")
+    private val transferRecipientPatterns = listOf(
+        Regex("^转账给(.{1,40})$"),
+        Regex("^已向(.{1,40}?)转账$"),
+        Regex("^已存入(.{1,40}?)(?:的)?零钱$"),
+        Regex("^(?:待|等待)(.{1,40}?)(?:确认)?收[款钱]$"),
+        Regex("^给(.{1,40})$"),
+    )
     private val ignoredMoney = Regex("优惠|红包|立减|折扣|优惠券|积分|余额|手续费|服务费|奖励|最多|最高|原价|订单金额|退款|已退")
     private val storeStatistics = Regex("好评率\\s*[0-9]|客服.*[0-9]\\s*秒.*回复|[0-9]\\s*秒.*回复|(?:已售|粉丝)\\s*[0-9]|[0-9][0-9.,万亿wWkK+＋]*人(?:喜欢|收藏|关注)")
     private val merchantNavigation = Regex("^(?:附近门店|前往小程序|商家小程序|小程序|门店|服务|交易服务|喜欢|收藏)\\s*[>〉›→]?$" )
@@ -66,7 +75,7 @@ object LocalOcrBillParser {
     private val digitWhitespace = Regex("(?<=[0-9])\\s+(?=[0-9])")
     private val productLabel = Regex("^(?:商品|商品说明|商品名称|交易说明)[：:]?")
     private val transportCategory = Regex("ETC|高速|停车|地铁|公交|公共交通|出租|打车|滴滴|加油", RegexOption.IGNORE_CASE)
-    private val diningCategory = Regex("餐厅|餐饮|食堂|饭|咖啡|奶茶|外卖|美食|早餐|火锅")
+    private val diningCategory = Regex("餐厅|餐饮|食堂|饭|咖啡|奶茶|外卖|美食|早餐|火锅|美团")
     private val householdCategory = Regex("超市|便利店|百货|日用")
     private val shoppingCategory = Regex("淘宝|京东|拼多多|天猫|购物")
     private val medicalCategory = Regex("医院|药房|药店|医疗")
@@ -104,10 +113,15 @@ object LocalOcrBillParser {
         val manualAmount=payLaterPrice ?: if(hasManualTotal)uniqueLabeledAmount(manualLines,manualTotal) else agreedAmount(clean,amountLabel,header?.second)
         val manualExpense = !expenseOnly && !isRefund && manualAmount?.let { it>0 }==true &&
             (hasManualTotal || payLaterPrice!=null || !unpaidOrder.containsMatchIn(compact))
+        val originPkg = origin.substringAfter(':')
+        val ecommercePaidTotal = if (expenseOnly && originPkg in PaymentApps.ecommercePackages) {
+            uniqueLabeledAmount(clean, ecommerceAmountLabel)
+        } else null
         // Some scan-payment result screens expose only the merchant, amount and “完成”.
         // livePaymentAt comes from the native success-frame gate, never OCR/model fields.
-        val verifiedLiveExpense = expenseOnly && origin in setOf(PaymentApps.WECHAT,PaymentApps.ALIPAY) &&
-            livePaymentAt?.let { it in 946_656_000_000L..capturedAt }==true && header?.second?.let { it>0 }==true
+        val verifiedLiveExpense = expenseOnly && originPkg in PaymentApps.supportedPackages &&
+            livePaymentAt?.let { it in 946_656_000_000L..capturedAt } == true &&
+            (header?.second?.let { it > 0 } == true || ecommercePaidTotal?.let { it > 0 } == true)
         // A success banner must never override a password/pending payment on the same image.
         if (!isRefund && pending.containsMatchIn(compact)) return null
         if (!isRefund && !manualExpense && !verifiedLiveExpense && !paid.containsMatchIn(compact) && !received.containsMatchIn(compact)) return null
@@ -123,11 +137,14 @@ object LocalOcrBillParser {
         if (expenseOnly && (direction == Direction.INCOME || isRefund)) return null
         val reasons = mutableListOf<String>()
         val merchant = merchant(clean, header, width, height).ifBlank {
-            when(origin.substringAfter(':')) {
+            when (originPkg) {
+                PaymentApps.MEITUAN -> "美团支出"
                 PaymentApps.TAOBAO -> "淘宝支出"
-                PaymentApps.WECHAT -> if(direction==Direction.INCOME)"微信收入" else "微信支出"
-                PaymentApps.ALIPAY -> if(direction==Direction.INCOME)"支付宝收入" else "支付宝支出"
-                else -> if(direction==Direction.INCOME)"收入记账" else "支出记账"
+                PaymentApps.PINDUODUO -> "拼多多支出"
+                PaymentApps.JD -> "京东支出"
+                PaymentApps.WECHAT -> if (direction == Direction.INCOME) "微信收入" else "微信支出"
+                PaymentApps.ALIPAY -> if (direction == Direction.INCOME) "支付宝收入" else "支付宝支出"
+                else -> if (direction == Direction.INCOME) "收入记账" else "支出记账"
             }
         }
         val otherTimes=labeledValues(clean,nonPaymentTimeLabel)
@@ -172,7 +189,11 @@ object LocalOcrBillParser {
         } else {
             // Shopping pages contain item prices and order totals at different sizes. Only
             // the explicitly paid order total represents this completed expense.
-            amount = if(!expenseOnly)manualAmount else agreedAmount(clean, amountLabel, header?.second)
+            amount = when {
+                !expenseOnly -> manualAmount
+                ecommercePaidTotal != null -> ecommercePaidTotal
+                else -> agreedAmount(clean, amountLabel, header?.second)
+            }
             if (amount == null || amount <= 0) reasons += "付款金额不明确"
         }
         return ParsedBill(amount, direction, merchant, category(clean, merchant), explicitTime ?: observedAt ?: capturedAt,
@@ -326,8 +347,22 @@ object LocalOcrBillParser {
         // Wallets show the trading name above the amount; the legal full name below
         // can be a different person or company and must not break the icon anchor.
         labeledValues(lines, merchantLabel).firstOrNull(::plausibleMerchant)?.let { return it.take(80) }
-        // In text-only documents accept a clear named transaction header, never an arbitrary label.
-        return lines.firstOrNull { it.text.startsWith("转账给") && it.text.length > 3 }?.text?.removePrefix("转账给")?.take(80).orEmpty()
+        // Accept explicit outgoing transfer recipient phrases without mistaking generic placeholders.
+        return extractTransferRecipient(lines).orEmpty()
+    }
+
+    private fun extractTransferRecipient(lines: List<LocalOcrLine>): String? {
+        for (line in lines) {
+            val compact = line.text.filterNot(Char::isWhitespace)
+            val candidate = transferRecipientPatterns.firstNotNullOfOrNull { pattern ->
+                pattern.matchEntire(compact)?.groupValues?.drop(1)?.firstOrNull { it.isNotBlank() }
+            }?.trim()?.take(80) ?: continue
+            if (candidate !in setOf("对方", "你", "我", "商家", "商户", "收款人", "收款方") &&
+                plausibleMerchant(candidate)) {
+                return candidate
+            }
+        }
+        return null
     }
 
     /** A goods-cost section may be far below the wallet-style amount header. Only
@@ -358,7 +393,9 @@ object LocalOcrBillParser {
     }
 
     private fun plausibleMerchant(value: String): Boolean = value.length in 2..80 &&
-        !uiText.containsMatchIn(value) && !isMerchantInterfaceText(value) && !fieldLabel(value) && !datePattern.containsMatchIn(value) &&
+        !uiText.containsMatchIn(value) &&
+        !transferStatusText.matches(value.filterNot(Char::isWhitespace)) &&
+        !isMerchantInterfaceText(value) && !fieldLabel(value) && !datePattern.containsMatchIn(value) &&
         !numericMerchant.containsMatchIn(value) &&
         !genericMerchantLabel.matches(value)
 

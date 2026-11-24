@@ -137,7 +137,7 @@ function fluidPanel(panel,origin,reverse=false,done=()=>{}){
 }
 function showRecordPanel(origin){if(page==='import')go('ledger');if(recordPanelOpen)return;closeSheet(false);const panel=$('record-panel');recordAnchor=origin?{left:origin.left,top:origin.top,width:origin.width,height:origin.height}:capsuleBounds();recordHome=document.createComment('record-editor-home');$('import').before(recordHome);panel.querySelector('.record-panel-content').append($('import'));recordPanelOpen=true;panel.hidden=false;panel.open=true;$('record-shade').hidden=false;PanelFocus.activate(panel,recordReturnControl);fluidPanel(panel,recordAnchor);remember()}
 function closeRecordPanel(animate=true,done=()=>{}){const panel=$('record-panel');if(!panel.open){done();return}recordPanelOpen=false;recordPanelClosing=true;const finish=()=>{FluidMotion.stop(panel);panel.removeAttribute('style');panel.classList.remove('morphing');panel._fade?.cancel();panel._fade=null;panel.querySelector('.record-panel-content').style.opacity='1';panel.hidden=true;panel.open=false;$('capture-preview').removeAttribute('src');$('capture-gallery').innerHTML='';$('record-shade').hidden=true;document.querySelector('.workspace').removeAttribute('aria-hidden');if(recordHome){recordHome.replaceWith($('import'));recordHome=null}PanelFocus.release(panel);recordPanelClosing=false;remember();done()};if(animate)fluidPanel(panel,recordAnchor,true,finish);else finish()}
-function settingsHelp(){showSheet('如何记账',`<div class="settings-help"><h3>支付成功，自动记支出</h3><p>开启微信或支付宝开关，按步骤开启页面识别权限。看到支付成功页面时会自动截图，识别成功后直接入账。</p><h3>没抓到，摇一摇补录</h3><p>打开单笔支付结果或账单详情，摇动手机补录。红包、快速返回等没有停留在成功页的交易，也可以用这个方式记录。</p><h3>收入由你主动记录</h3><p>自动识别只记录支出；收入可手动记账、导入截图或摇一摇记录。</p><h3>记录保存在本机</h3><p>识别在本机完成，无需配置，截图不上传。账单和商户图标保存在本机。截图由应用自动压缩和定期清理，清理截图不会删除账单。</p></div>`)}
+function settingsHelp(){showSheet('如何记账',`<div class="settings-help"><h3>支付或转账成功，自动记支出</h3><p>开启微信（含转账）、支付宝、美团、淘宝、拼多多或京东开关，按步骤开启页面识别权限。看到支付或转账成功页面时会自动截图，识别成功后直接入账。</p><h3>没抓到，摇一摇补录</h3><p>打开单笔支付结果或账单详情，摇动手机补录。红包、快速返回等没有停留在成功页的交易，也可以用这个方式记录。</p><h3>收入由你主动记录</h3><p>自动识别只记录支出；收入可手动记账、导入截图或摇一摇记录。</p><h3>记录保存在本机</h3><p>识别在本机完成，无需配置，截图不上传。账单和商户图标保存在本机。截图由应用自动压缩和定期清理，清理截图不会删除账单。</p></div>`)}
 function drawSettings(){
  for(const toggle of document.querySelectorAll('[data-payment-app]')) {
   const app=(automatic.applications||[]).find(a=>a.packageName===toggle.dataset.paymentApp);
@@ -154,7 +154,7 @@ function drawSettings(){
   let label=state.enabled?'已开启':'已关闭';
   if(state.enabled&&!state.permitted)label='等待授权';
   else if(state.enabled&&state.permitted)label=key==='ocr'?(captureHealth.shakeMessage||'正在启动摇动监听'):key==='sms'?'等待交易短信':state.connected?'已连接':'等待连接';
-  const detail=!state.enabled&&state.permitted?'系统仍授权':key==='ocr'?(state.enabled?'检查后台设置':'截图识别'):key==='sms'?'银行交易短信':'交易通知';
+  const detail=!state.enabled&&state.permitted?(key==='ocr'&&automatic.enabled?'支付自动识别运行中':'系统仍授权'):key==='ocr'?(state.enabled?'检查后台设置':'截图识别'):key==='sms'?'银行交易短信':'交易通知';
   const copy=toggle.dataset.channel==='ocr'?document.querySelector('[data-channel-info=ocr]'):toggle.parentElement.querySelector('.setting-copy');
   copy.querySelector('.permission').textContent=`${label} · ${detail}`;
   copy.setAttribute('aria-label',`${toggle.getAttribute('aria-label')}，${label}，${detail}`);
@@ -400,7 +400,7 @@ function showBillExport(){
 }
 $('backup').onclick=showDataTools;
 document.querySelectorAll('[data-payment-app]').forEach(button=>button.onclick=()=>{if(!native?.setPaymentApplication){notify('请在 Android 应用中设置支付自动识别');return}native.setPaymentApplication(button.dataset.paymentApp,button.getAttribute('aria-checked')!=='true');});
-document.querySelectorAll('[data-channel-info]').forEach(b=>b.onclick=()=>{const key=b.dataset.channelInfo,state=channels[key]||{};if(key==='ocr'&&state.enabled&&captureHealth.enabled&&!captureHealth.ready&&native?.repairCapture){native.repairCapture();return}if(key==='ocr'&&state.enabled&&native?.shakeStatus){native.shakeStatus();return}if(!state.enabled&&state.permitted)revokeChannel(key);else setChannel(key,!state.enabled)});
+document.querySelectorAll('[data-channel-info]').forEach(b=>b.onclick=()=>{const key=b.dataset.channelInfo,state=channels[key]||{};if(key==='ocr'&&state.enabled&&captureHealth.enabled&&!captureHealth.ready&&native?.repairCapture){native.repairCapture();return}if(key==='ocr'&&state.enabled&&native?.shakeStatus){native.shakeStatus();return}if(!state.enabled&&state.permitted&&!(key==='ocr'&&automatic.enabled))revokeChannel(key);else setChannel(key,!state.enabled)});
 document.querySelector('.scanner').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();viewOrPickImage()}};
 document.querySelectorAll('i').forEach(i=>i.setAttribute('aria-hidden','true'));
 
@@ -435,7 +435,7 @@ $('manage-category').onclick=()=>{showSheet('管理分类',`<label class="sheet-
 const categoryAliases=[
  [/停车|泊车/,'square-parking'],[/高速|路桥|过路|通行/,'road'],[/母婴|亲子|育儿|奶粉|宝宝/,'baby'],[/宠物/,'paw'],
  [/咖啡|茶饮|奶茶/,'mug-saucer'],[/餐|美食|饮食|食品|外卖|零食|吃饭/,'utensils'],[/交通|打车|公交|地铁|出行|车费/,'bus'],
- [/汽车|加油|充电|养车/,'car'],[/购物|网购|数码|电器|淘宝|拼多多/,'bag-shopping'],[/日用|生活用品|超市/,'basket-shopping'],
+ [/汽车|加油|充电|养车/,'car'],[/购物|网购|数码|电器|淘宝|拼多多|京东/,'bag-shopping'],[/日用|生活用品|超市/,'basket-shopping'],
  [/服饰|衣|鞋|包|配饰/,'shirt'],[/医疗|药|健康|看病/,'briefcase-medical'],[/教育|学习|培训|书/,'graduation-cap'],
  [/居住|住房|房租|物业|家居/,'house'],[/生活缴费|水电|燃气|电费/,'bolt'],[/通讯|通信|话费|网络/,'phone'],[/娱乐|游戏|电影/,'gamepad'],
  [/运动|健身/,'dumbbell'],[/旅行|旅游|酒店/,'suitcase'],[/美容|护肤|美妆/,'spa'],[/红包/,'envelope'],

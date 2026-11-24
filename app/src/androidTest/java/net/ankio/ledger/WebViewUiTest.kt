@@ -113,7 +113,7 @@ class WebViewUiTest {
             for (channel in listOf("ocr")) {
                 web.await("(()=>{const state=JSON.parse(LedgerNative.snapshot()).channels[${quote(channel)}],toggle=document.querySelector('[data-channel=\"$channel\"]');return typeof state.permitted==='boolean' && toggle.getAttribute('aria-checked')===String(state.enabled)})()")
             }
-            web.await("!document.querySelector('[data-channel=sms]') && !document.querySelector('[data-channel=notification]') && document.querySelectorAll('[data-payment-app]').length===2")
+            web.await("!document.querySelector('[data-channel=sms]') && !document.querySelector('[data-channel=notification]') && document.querySelectorAll('[data-payment-app]').length===6")
             web.run("document.querySelector('.privacy-banner').click()")
             androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().waitForIdleSync()
             androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)

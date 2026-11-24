@@ -216,11 +216,12 @@ internal class PaymentPageMonitor(private val service:ScreenCaptureService,priva
                 while(queue.isNotEmpty()) {
                     val (node,depth)=queue.removeFirst()
                     try {
-                        // The measured Alipay result has 100 nodes but reaches depth 28.
+                        // The measured Alipay result has 100 nodes but reaches depth 28; e-commerce
+                        // success pages with recommendation feeds can exceed 400 nodes.
                         // Keep bounded traversal and reject any partial tree, including one
                         // whose unvisited children might contain an authentication field.
-                        if(++count>400 || depth>64) {
-                            detail.put("limit",if(count>400)"nodes" else "depth").put("depth",depth)
+                        if(++count>1000 || depth>64) {
+                            detail.put("limit",if(count>1000)"nodes" else "depth").put("depth",depth)
                             clipped=true;break
                         }
                         if(node.isVisibleToUser) {
@@ -231,9 +232,9 @@ internal class PaymentPageMonitor(private val service:ScreenCaptureService,priva
                                 if(it.isNotBlank() && it.length<=2048)texts.add(it)
                             }
                         }
-                        if(chars>16000) { detail.put("limit","text");clipped=true;break }
-                        for(i in 0 until node.childCount.coerceAtMost(80))node.getChild(i)?.let { queue.add(it to depth+1) }
-                        if(node.childCount>80) { detail.put("limit","children");clipped=true }
+                        if(chars>32000) { detail.put("limit","text");clipped=true;break }
+                        for(i in 0 until node.childCount.coerceAtMost(120))node.getChild(i)?.let { queue.add(it to depth+1) }
+                        if(node.childCount>120) { detail.put("limit","children");clipped=true }
                     } finally { node.recycle() }
                 }
             } finally { queue.forEach { it.first.recycle() } }

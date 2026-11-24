@@ -448,8 +448,23 @@ class MainActivity : Activity() {
     }
     fun changeChannel(key: String, enabled: Boolean) {
         val channel = ChannelSettings.Channel.entries.firstOrNull { it.key == key && it == ChannelSettings.Channel.OCR } ?: return
-        if (!enabled) { revokeChannel(key); return }
-        permissionSetup.start(channel)
+        if (!enabled) {
+            val detail = if (ledger.channels.automaticEnabled()) {
+                "将仅停止摇动手机补录；已开启的支付自动识别开关与已有本地账单会保留。"
+            } else {
+                "将停止摇动手机补录，已有本地账单会保留。如需彻底撤销系统无障碍授权，可在「数据与隐私 → 管理截图授权」中操作。"
+            }
+            MintDialog.confirm(this, "关闭摇一摇识别？", detail, "关闭摇一摇") {
+                pauseChannel(channel)
+                message("已关闭摇一摇识别")
+            }
+            return
+        }
+        if (ledger.channels.permitted(channel) && ScreenCaptureService.current != null && !permissionSetup.backgroundNeedsReview()) {
+            enableChannel(channel)
+        } else {
+            permissionSetup.start(channel)
+        }
     }
     private fun requestChannelPermission(channel: ChannelSettings.Channel) {
         pendingChannel = channel
@@ -561,7 +576,7 @@ class MainActivity : Activity() {
         sheet.content.addView(privacyDetails)
         var afterDismiss:(()->Unit)?=null
         sheet.fixedActions(
-            sheet.button("管理截图授权").apply { setOnClickListener { afterDismiss={ changeChannel("ocr",false) };sheet.dismiss() } },
+            sheet.button("管理截图授权").apply { setOnClickListener { afterDismiss={ revokeChannel("ocr") };sheet.dismiss() } },
             sheet.button("调试与诊断").apply { setOnClickListener { afterDismiss={ showDiagnostics() };sheet.dismiss() } }
         )
         sheet.onPageDismiss { if(!isFinishing&&!isDestroyed)afterDismiss?.invoke() }

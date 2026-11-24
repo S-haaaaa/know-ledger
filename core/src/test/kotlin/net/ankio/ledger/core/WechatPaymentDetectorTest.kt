@@ -29,7 +29,16 @@ class WechatPaymentDetectorTest {
     }
     @Test fun paidTransferCanStillBeWaitingForRecipient() {
         assertNotNull(PaymentPageDetector.detect(page("转账成功","￥0.01","等待对方收款","完成")))
+        assertNotNull(PaymentPageDetector.detect(page("待张三确认收款","¥88.00","完成")))
+        assertNotNull(PaymentPageDetector.detect(page("待张三确认收款","¥88.00","完成",activity="com.tencent.mm.plugin.remittance.ui.RemittanceResultUI")))
+        assertNotNull(PaymentPageDetector.detect(page("待张三确认收款","¥88.00","完成",activity=PaymentPageDetector.WECHAT_FRAMEWORK_RESULT)))
+        assertNotNull(PaymentPageDetector.detect(page("已存入对方零钱","¥50.00","完成")))
+        assertNotNull(PaymentPageDetector.detect(page("已转账","给李四","¥120.00","完成")))
+        assertNotNull(PaymentPageDetector.detect(page("已向王五转账","¥66.66","完成")))
         assertNull(PaymentPageDetector.detect(page("待收款","￥0.01","确认收款")))
+        assertNull(PaymentPageDetector.detect(page("待你收款","￥88.00","立即收款")))
+        assertNull(PaymentPageDetector.detect(page("已收款","￥88.00","完成")))
+        assertNull(PaymentPageDetector.detect(page("收款成功","￥88.00")))
     }
     @Test fun chatsInputsFailuresAndUnrelatedWebPagesCannotTrigger() {
         assertNull(PaymentPageDetector.detect(page("支付成功","￥0.01",activity="com.tencent.mm.ui.chatting.ChattingUI")))

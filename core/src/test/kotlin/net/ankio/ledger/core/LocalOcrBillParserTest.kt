@@ -326,6 +326,30 @@ class LocalOcrBillParserTest {
         assertTrue(result.reason, result.reliable)
     }
 
+    @Test fun wechatTransferAndEcommerceAutomaticOcrUseExplicitPaidTotals() {
+        val awaiting = parse("待张三确认收款", "¥88.00", "完成", live = true, expenseOnly = true, origin = PaymentApps.WECHAT)!!
+        assertEquals(Direction.EXPENSE, awaiting.direction)
+        assertEquals(8800L, awaiting.amountCents)
+        assertEquals("张三", awaiting.merchant)
+
+        val stored = parse("已存入对方零钱", "¥50.00", "完成", live = true, expenseOnly = true, origin = PaymentApps.WECHAT)!!
+        assertEquals(Direction.EXPENSE, stored.direction)
+        assertEquals(5000L, stored.amountCents)
+
+        for ((pkg, expectedMerchant, expectedCategory) in listOf(
+            Triple(PaymentApps.MEITUAN, "美团支出", "餐饮美食"),
+            Triple(PaymentApps.PINDUODUO, "拼多多支出", "购物消费"),
+            Triple(PaymentApps.JD, "京东支出", "购物消费"),
+            Triple(PaymentApps.TAOBAO, "淘宝支出", "购物消费"),
+        )) {
+            val result = parse("支付成功", "实付：¥28.50", "¥99.00", "查看订单", live = true, expenseOnly = true, origin = pkg)!!
+            assertEquals(pkg, 2850L, result.amountCents)
+            assertEquals(pkg, expectedMerchant, result.merchant)
+            assertEquals(pkg, expectedCategory, result.category)
+            assertTrue(result.reason, result.reliable)
+        }
+    }
+
     @Test fun unreadableOrFutureDatesUseRecognitionTimeWithoutBlockingManualEntry() {
         for (date in listOf("2026年02月30日 11:00:00", "2027年10月17日 12:00:00")) {
             val result = parse("支付成功", "付款金额：10.00元", "商户名称：合成商户", "支付时间：$date")!!

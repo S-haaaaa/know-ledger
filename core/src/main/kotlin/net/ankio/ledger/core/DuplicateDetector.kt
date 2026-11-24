@@ -45,7 +45,7 @@ object DuplicateDetector {
     fun identityScope(capture:Capture):String? = provider(capture.origin) ?: imageProvider(capture) ?:
         capture.origin.substringAfter(':').takeIf { capture.source in imageSources && CapturePrivacy.manualPackageAllowed(it) }?.let { "app:$it" }
     private fun genericMerchant(value: String) = normalizedMerchant(value).let {
-        it.isBlank() || it in setOf("未知商户", "其他", "微信支付", "微信支出", "微信收入", "支付宝", "支付宝支出", "支付宝收入")
+        it.isBlank() || it in setOf("未知商户", "其他", "微信支付", "微信支出", "微信收入", "支付宝", "支付宝支出", "支付宝收入", "美团支出", "淘宝支出", "拼多多支出", "京东支出")
     }
 
     private fun normalizedMerchant(value: String): String = normalize(value).lowercase()

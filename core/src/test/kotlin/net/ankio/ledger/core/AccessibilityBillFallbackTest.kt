@@ -58,6 +58,52 @@ class AccessibilityBillFallbackTest {
         assertTrue(bill.timeExplicit)
     }
 
+    @Test fun parsesWechatTransferAndEcommerceFastExitResults() {
+        val transfer = requireNotNull(
+            PaymentPageDetector.detect(
+                PaymentPage(
+                    PaymentApps.WECHAT,
+                    12,
+                    "com.tencent.mm.plugin.remittance.ui.RemittanceResultNewUI",
+                    listOf("待张三确认收款", "¥88.00", "完成"),
+                )
+            )
+        )
+        val transferBill = requireNotNull(AccessibilityBillFallback.parse(transfer, 1_760_000_000_000L))
+        assertEquals(8800L, transferBill.amountCents)
+        assertEquals(Direction.EXPENSE, transferBill.direction)
+        assertEquals("张三", transferBill.merchant)
+
+        val meituan = requireNotNull(
+            PaymentPageDetector.detect(
+                PaymentPage(
+                    PaymentApps.MEITUAN,
+                    13,
+                    "com.sankuai.meituan.pay.CashierResultActivity",
+                    listOf("下单成功", "喜茶外卖", "实付 ¥32.00", "查看订单"),
+                )
+            )
+        )
+        val meituanBill = requireNotNull(AccessibilityBillFallback.parse(meituan, 1_760_000_000_000L))
+        assertEquals(3200L, meituanBill.amountCents)
+        assertEquals("喜茶外卖", meituanBill.merchant)
+        assertEquals("餐饮美食", meituanBill.category)
+
+        val jd = requireNotNull(
+            PaymentPageDetector.detect(
+                PaymentPage(
+                    PaymentApps.JD,
+                    14,
+                    "com.jingdong.app.mall.pay.PaySuccessActivity",
+                    listOf("支付成功", "京东自营旗舰店", "实付款 ¥129.00", "推荐商品 ¥49.00", "查看订单"),
+                )
+            )
+        )
+        val jdBill = requireNotNull(AccessibilityBillFallback.parse(jd, 1_760_000_000_000L))
+        assertEquals(12900L, jdBill.amountCents)
+        assertEquals("购物消费", jdBill.category)
+    }
+
     @Test fun rejectsSensitiveOrUnsupportedOrZeroMatches() {
         val valid = requireNotNull(PaymentPageDetector.detect(PaymentPage(PaymentApps.WECHAT, 1, wechat, listOf("支付成功", "¥12.00", "完成"))))
         assertNull(AccessibilityBillFallback.parse(valid.copy(texts = listOf("支付成功", "¥12.00", "请输入支付密码")), 1_760_000_000_000L))

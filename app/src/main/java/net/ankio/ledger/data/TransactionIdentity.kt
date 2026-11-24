@@ -11,11 +11,14 @@ internal object TransactionIdentities {
     private val reservedLabels=Regex("(?:商户\\s*(?:交易号|交易单号|订单号|订单编号)|原\\s*(?:交易号|交易单号|订单号|订单编号))\\s*[:：]?\\s*([A-Za-z0-9][A-Za-z0-9_-]{3,159})")
     private val packageName=Regex("[A-Za-z0-9_.]+")
     private val paymentScopes=setOf("alipay","wechat")
-    private val issuerPrefixes=listOf("商户","原","支付宝","微信","微信支付","淘宝")
+    private val issuerPrefixes=listOf("商户","原","支付宝","微信","微信支付","美团","淘宝","拼多多","京东")
     private val explicitLabels=listOf(
         "alipay" to Regex("(?:支付宝\\s*交易号|支付宝\\s*交易单号)\\s*[:：]?\\s*([A-Za-z0-9][A-Za-z0-9_-]{3,159})"),
         "wechat" to Regex("(?:微信\\s*支付单号|微信\\s*交易号|微信\\s*交易单号)\\s*[:：]?\\s*([A-Za-z0-9][A-Za-z0-9_-]{3,159})"),
+        "app:com.sankuai.meituan" to Regex("(?:美团\\s*订单号|美团\\s*订单编号)\\s*[:：]?\\s*([A-Za-z0-9][A-Za-z0-9_-]{3,159})"),
         "app:com.taobao.taobao" to Regex("(?:淘宝\\s*订单号|淘宝\\s*订单编号)\\s*[:：]?\\s*([A-Za-z0-9][A-Za-z0-9_-]{3,159})"),
+        "app:com.xunmeng.pinduoduo" to Regex("(?:拼多多\\s*订单号|拼多多\\s*订单编号)\\s*[:：]?\\s*([A-Za-z0-9][A-Za-z0-9_-]{3,159})"),
+        "app:com.jingdong.app.mall" to Regex("(?:京东\\s*订单号|京东\\s*订单编号)\\s*[:：]?\\s*([A-Za-z0-9][A-Za-z0-9_-]{3,159})"),
     )
     private val paymentLabel=Regex("(?:(?<![\\p{L}\\p{N}_])(?:交易号|交易单号))\\s*[:：]?\\s*([A-Za-z0-9][A-Za-z0-9_-]{3,159})")
     private val orderLabel=Regex("(?:(?<![\\p{L}\\p{N}_])(?:订单编号|订单号码|订单号))\\s*[:：]?\\s*([A-Za-z0-9][A-Za-z0-9_-]{3,159})")

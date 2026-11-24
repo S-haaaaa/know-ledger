@@ -58,8 +58,8 @@ android {
         applicationId = "com.shaaaaa.jizhang"
         minSdk = 30
         targetSdk = 36
-        versionCode = 120
-        versionName = "1.0.0-v6"
+        versionCode = 121
+        versionName = "1.0.1-v6"
         buildConfigField("String", "LOCAL_OCR_ENGINE", "\"paddle-v6-tiny\"")
         buildConfigField("String", "LOCAL_OCR_LABEL", "\"PaddleOCR V6 Tiny\"")
         testInstrumentationRunner = providers.gradleProperty("ledgerTestRunner").getOrElse("androidx.test.runner.AndroidJUnitRunner")

@@ -22,7 +22,7 @@ class PaymentSettingsUiTest {
             app.channels.setAutomaticEnabled(false)
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
                 val web=WebUiProbe(scenario);web.ready();web.run("go('settings')")
-                web.await("document.querySelectorAll('[data-payment-app]').length===2 && document.querySelectorAll('.account-preferences>button').length===2 && !document.querySelector('#screenshot-storage') && !document.querySelector('#automatic-toggle')")
+                web.await("document.querySelectorAll('[data-payment-app]').length===6 && document.querySelectorAll('.account-preferences>button').length===2 && !document.querySelector('#screenshot-storage') && !document.querySelector('#automatic-toggle')")
                 web.await("[...document.querySelectorAll('[data-payment-app]')].every(e=>e.getAttribute('aria-checked')==='false') && document.querySelectorAll('#settings .steps .step').length===3")
                 web.run("document.querySelector('#backup').click()")
                 web.await("document.querySelector('#export-backup') && document.querySelector('#restore-backup')")

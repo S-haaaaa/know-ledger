@@ -91,6 +91,32 @@ class PaymentPageDetectorTest {
         assertNull(PaymentPageDetector.detect(page(PaymentApps.TAOBAO, taobao, "订单详情", "买家已付款", "实付款", "¥80.00")))
         assertNull(PaymentPageDetector.detect(page(PaymentApps.TAOBAO, taobao, "提交订单", "实付款", "¥80.00", "确认付款")))
         assertNull(PaymentPageDetector.detect(page(PaymentApps.TAOBAO, taobao, "支付成功", "商品价格", "¥80.00")))
+        assertNull(PaymentPageDetector.detect(page(PaymentApps.TAOBAO, taobao, "支付成功", "实付价", "¥80.00")))
+    }
+
+    @Test fun meituanPinduoduoAndJdPaymentResultsMatchSafely() {
+        val meituan = "com.sankuai.meituan.pay.CashierResultActivity"
+        val pinduoduo = "com.xunmeng.pinduoduo.activity.NewPageActivity"
+        val jd = "com.jingdong.app.mall.pay.PaySuccessActivity"
+        val pddOrderMatch = PaymentPageDetector.detect(page(PaymentApps.PINDUODUO, pinduoduo, "拼单成功", "实付 ¥28.50", "猜你喜欢", "¥39.90", "查看订单"))
+        assertNotNull(pddOrderMatch)
+        assertEquals(2850L, pddOrderMatch!!.amountCents)
+        val meituanMatch = PaymentPageDetector.detect(page(PaymentApps.MEITUAN, meituan, "下单成功", "喜茶外卖", "实付", "¥32.00", "订单金额", "¥38.00", "优惠", "¥6.00", "完成"))
+        assertNotNull(meituanMatch)
+        assertEquals(3200L, meituanMatch!!.amountCents)
+        val jdMatch = PaymentPageDetector.detect(page(PaymentApps.JD, jd, "支付成功", "实付金额", "¥129.00", "推荐商品", "¥49.00", "查看订单"))
+        assertNotNull(jdMatch)
+        assertEquals(12900L, jdMatch!!.amountCents)
+
+        for ((pkg, act) in listOf(PaymentApps.MEITUAN to meituan, PaymentApps.PINDUODUO to pinduoduo, PaymentApps.JD to jd)) {
+            assertNull(pkg, PaymentPageDetector.detect(page(pkg, act, "订单详情", "付款成功", "实付 ¥28.50")))
+            assertNull(pkg, PaymentPageDetector.detect(page(pkg, act, "确认订单", "实付 ¥28.50", "去支付")))
+            assertNull(pkg, PaymentPageDetector.detect(page(pkg, act, "下单成功", "先用后付", "实付 ¥28.50")))
+            assertNull(pkg, PaymentPageDetector.detect(page(pkg, act, "下单成功", "货到付款", "实付 ¥28.50")))
+            assertNull(pkg, PaymentPageDetector.detect(page(pkg, act, "下单成功", "¥28.50", "查看订单")))
+            assertNull(pkg, PaymentPageDetector.detect(page(pkg, act, "支付成功", "实付 ¥28.50", "请输入支付密码")))
+            assertNull(pkg, PaymentPageDetector.detect(page(pkg, act, "支付成功", "实付 ¥28.50").copy(editable = true)))
+        }
     }
 
     @Test fun unsupportedAppsAndChatPagesAreNotCandidates() {
